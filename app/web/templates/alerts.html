@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Alerts · PC Price Tracker{% endblock %}
+{% block content %}
+<h1>Alerts <span class="badge">{{ unread }} ใหม่</span></h1>
+{% if alerts %}
+<table>
+  <thead>
+    <tr><th>สินค้า</th><th class="r">ราคา</th><th class="r">avg ตอนนั้น</th><th class="r">ส่วนลด</th><th>พื้นที่</th><th>เวลา</th><th></th></tr>
+  </thead>
+  <tbody>
+  {% for a in alerts %}
+    <tr class="alert-row {{ 'read' if a.is_read else 'unread' }}">
+      <td>
+        <strong><a href="{{ url_for('main.item', item_name=a.item_name) }}">{{ a.item_name }}</a></strong>
+        {% if a.capacity and a.capacity != 'ไม่ระบุ' %}<span class="tag cap">{{ a.capacity }}</span>{% endif %}
+        {% if a.speed and a.speed != 'ไม่ระบุ' %}<span class="tag spd">{{ a.speed }}</span>{% endif %}
+        {% if a.local_pickup %} <span class="tag local">🏠 รับมือได้</span>{% endif %}
+      </td>
+      <td class="r">{{ a.price|baht }}</td>
+      <td class="r muted">{{ a.avg_at_time|baht }}</td>
+      <td class="r discount">-{{ a.discount_pct }}%</td>
+      <td>{{ a.location }}</td>
+      <td class="muted">{{ a.alerted_at }}</td>
+      <td>
+        <a href="{{ a.source_url }}" target="_blank" rel="noopener">เปิด ↗</a>
+        {% if not a.is_read %}<button class="link" onclick="markRead({{ a.id }}, this)">อ่านแล้ว</button>{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <p class="empty">ยังไม่มี alert — จะเตือนเมื่อเจอราคา &lt; {{ (0.85*100)|int }}% ของ avg</p>
+{% endif %}
+{% endblock %}

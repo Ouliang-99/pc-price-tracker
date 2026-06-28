@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}{{ overall.item_name }} · PC Price Tracker{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_for('main.catalog') }}">← กลับ catalog</a>
+<h1>{{ overall.item_name }} <span class="tag">{{ overall.category }}</span></h1>
+
+<section class="cards">
+  <div class="card"><div class="num">{{ overall.avg_price|baht }}</div><div class="lbl">avg ฿ (รวมทุกแบบ)</div></div>
+  <div class="card"><div class="num">{{ overall.min_price|baht }}</div><div class="lbl">min ฿</div></div>
+  <div class="card"><div class="num">{{ overall.max_price|baht }}</div><div class="lbl">max ฿</div></div>
+  <div class="card"><div class="num">{{ overall.sample_count }}</div><div class="lbl">samples</div></div>
+</section>
+
+{% if variants|length > 1 %}
+<h2>แยกตามแบบ ({{ variants|length }})</h2>
+<table>
+  <thead><tr><th>form factor</th><th>capacity</th><th>speed</th><th class="r">avg</th><th class="r">median</th><th class="r">min</th><th class="r">max</th><th class="r">n</th></tr></thead>
+  <tbody>
+  {% for v in variants %}
+    <tr>
+      <td>{% if v.form_factor != 'ไม่ระบุ' %}<span class="tag ff">{{ v.form_factor }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if v.capacity != 'ไม่ระบุ' %}<span class="tag cap">{{ v.capacity }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if v.speed != 'ไม่ระบุ' %}<span class="tag spd">{{ v.speed }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="r">{{ v.avg_price|baht }}</td>
+      <td class="r">{{ v.median_price|baht }}</td>
+      <td class="r">{{ v.min_price|baht }}</td>
+      <td class="r">{{ v.max_price|baht }}</td>
+      <td class="r">{{ v.sample_count }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h2>แนวโน้มราคา</h2>
+<svg id="chart" viewBox="0 0 720 240" class="chart" preserveAspectRatio="none"></svg>
+
+<h2>ประวัติ ({{ history|length }})</h2>
+<table>
+  <thead><tr><th class="r">ราคา</th><th>ยี่ห้อ</th><th>แบบ</th><th>สภาพ</th><th>พื้นที่</th><th>แหล่ง</th><th>วันที่</th><th>จัดการ</th></tr></thead>
+  <tbody>
+  {% for h in history %}
+    <tr>
+      <td class="r">{{ h.price|baht }}</td>
+      <td>{{ h.brand if h.brand != 'ไม่ระบุ' else '' }}</td>
+      <td>
+        {% if h.form_factor != 'ไม่ระบุ' %}<span class="tag ff">{{ h.form_factor }}</span>{% endif %}
+        {% if h.capacity != 'ไม่ระบุ' %}<span class="tag cap">{{ h.capacity }}</span>{% endif %}
+        {% if h.speed != 'ไม่ระบุ' %}<span class="tag spd">{{ h.speed }}</span>{% endif %}
+        {% if h.variant != 'ไม่ระบุ' %}<span class="tag var">{{ h.variant }}</span>{% endif %}
+      </td>
+      <td>{{ h.condition }}{% if h.negotiable %} · ต่อรอง{% endif %}</td>
+      <td>{{ h.location }}</td>
+      <td><span class="tag">{{ h.source }}</span></td>
+      <td class="muted">{{ h.posted_at or h.scraped_at }}</td>
+      <td>
+        <a href="{{ h.source_url }}" target="_blank" rel="noopener">เปิด ↗</a>
+        <button class="link" style="margin-left:8px;" onclick="openEditModal({{ h.id }}, '{{ h.item_name }}', '{{ h.capacity }}', '{{ h.speed }}', '{{ h.form_factor }}')">✏️ ย้าย</button>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<dialog id="edit-modal" style="border:none; border-radius:8px; padding:24px; max-width:400px; background:#1e1e24; color:#fff; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+  <h3 style="margin-top:0;">ย้ายหมวดหมู่ / แก้ไข</h3>
+  <form onsubmit="submitEdit(event)" style="display:flex; flex-direction:column; gap:12px;">
+    <input type="hidden" id="edit-id">
+    
+    <label style="display:flex; flex-direction:column; gap:4px;">ชื่อรุ่น (Item Name)
+      <select id="edit-name" style="padding:8px; border-radius:4px; border:1px solid #333; background:#111; color:#fff;">
+        {% for cat, models in taxonomy.items() %}
+          <optgroup label="{{ cat }}">
+            {% for m in models %}
+              <option value="{{ m.standard }}">{{ m.standard }}</option>
+            {% endfor %}
+          </optgroup>
+        {% endfor %}
+      </select>
+    </label>
+    
+    <div style="display:flex; gap:12px;">
+      <label style="display:flex; flex-direction:column; gap:4px; flex:1;">Capacity
+        <input id="edit-cap" style="padding:8px; border-radius:4px; border:1px solid #333; background:#111; color:#fff;">
+      </label>
+      <label style="display:flex; flex-direction:column; gap:4px; flex:1;">Speed
+        <input id="edit-spd" style="padding:8px; border-radius:4px; border:1px solid #333; background:#111; color:#fff;">
+      </label>
+    </div>
+    
+    <label style="display:flex; flex-direction:column; gap:4px;">Form Factor
+      <input id="edit-ff" style="padding:8px; border-radius:4px; border:1px solid #333; background:#111; color:#fff;">
+    </label>
+    
+    <div style="display:flex; gap:12px; margin-top:12px; justify-content:flex-end;">
+      <button type="button" class="btn" style="background:#444;" onclick="document.getElementById('edit-modal').close()">ยกเลิก</button>
+      <button type="submit" class="btn">บันทึก</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+function openEditModal(id, name, cap, spd, ff) {
+  document.getElementById('edit-id').value = id;
+  document.getElementById('edit-name').value = name;
+  document.getElementById('edit-cap').value = cap === 'ไม่ระบุ' ? '' : cap;
+  document.getElementById('edit-spd').value = spd === 'ไม่ระบุ' ? '' : spd;
+  document.getElementById('edit-ff').value = ff === 'ไม่ระบุ' ? '' : ff;
+  document.getElementById('edit-modal').showModal();
+}
+async function submitEdit(e) {
+  e.preventDefault();
+  const id = document.getElementById('edit-id').value;
+  const data = {
+    item_name: document.getElementById('edit-name').value,
+    capacity: document.getElementById('edit-cap').value,
+    speed: document.getElementById('edit-spd').value,
+    form_factor: document.getElementById('edit-ff').value,
+  };
+  const res = await fetch(`/api/history/${id}/edit`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  });
+  if (res.ok) location.reload();
+  else alert("เกิดข้อผิดพลาดในการบันทึก");
+}
+const POINTS = {{ points|tojson }};
+const AVG = {{ overall.avg_price or 0 }};
+(function drawChart() {
+  const svg = document.getElementById('chart');
+  if (!POINTS.length) { svg.innerHTML = '<text x="360" y="120" text-anchor="middle" fill="#888">ไม่มีข้อมูลพอ</text>'; return; }
+  const W = 720, H = 240, pad = 24;
+  const prices = POINTS.map(p => p.price);
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const range = (max - min) || 1;
+  const x = i => pad + i * (W - 2*pad) / Math.max(POINTS.length - 1, 1);
+  const y = v => H - pad - (v - min) * (H - 2*pad) / range;
+  let path = POINTS.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.price).toFixed(1)}`).join(' ');
+  let dots = POINTS.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.price).toFixed(1)}" r="3" fill="#4f8cff"><title>${p.price.toLocaleString()} ฿ · ${p.at}</title></circle>`).join('');
+  let avgLine = '';
+  if (AVG >= min && AVG <= max) {
+    const ay = y(AVG).toFixed(1);
+    avgLine = `<line x1="${pad}" y1="${ay}" x2="${W-pad}" y2="${ay}" stroke="#f5a623" stroke-dasharray="4 4"/><text x="${W-pad}" y="${ay-6}" text-anchor="end" fill="#f5a623" font-size="12">avg ${Math.round(AVG).toLocaleString()}</text>`;
+  }
+  svg.innerHTML = `${avgLine}<path d="${path}" fill="none" stroke="#4f8cff" stroke-width="2"/>${dots}`;
+})();
+</script>
+{% endblock %}

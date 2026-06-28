@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}System & Controls · PC Price Tracker{% endblock %}
+{% block content %}
+<div style="max-width:800px; margin:0 auto;">
+  <h1>⚙️ ตั้งค่าระบบ (System Controls)</h1>
+  <p class="muted">ควบคุมการทำงานของบอทและฐานข้อมูลจากหน้านี้ได้เลย โดยไม่ต้องพิมพ์คำสั่งใน Terminal</p>
+
+  <div class="grid2" style="margin-top:24px;">
+    <!-- Scraper -->
+    <section class="card" style="padding:24px; text-align:left;">
+      <h3 style="margin-top:0;">🤖 สั่งบอทดึงข้อมูล</h3>
+      <p style="font-size:14px; color:#aaa;">เริ่มดึงข้อมูลจาก Facebook ทันที (จะใช้เวลาประมาณ 2-5 นาทีในการดึงและวิเคราะห์ผ่าน AI)</p>
+      <button class="btn" style="width:100%; margin-top:16px; justify-content:center;" onclick="runCommand('scrape')">🚀 เริ่ม Scrape ทันที</button>
+    </section>
+
+    <!-- Replay -->
+    <section class="card" style="padding:24px; text-align:left;">
+      <h3 style="margin-top:0;">♻️ ประมวลผลซ้ำ (Replay)</h3>
+      <p style="font-size:14px; color:#aaa;">นำข้อมูลดิบที่เคยโหลดไว้มาให้ AI แปลงผลและจัดกลุ่มใหม่ (ใช้กรณีเพิ่งปรับแต่ง Taxonomy/Parser)</p>
+      <button class="btn" style="width:100%; margin-top:16px; justify-content:center; background:#444;" onclick="runCommand('replay')">♻️ Replay ข้อมูลเดิม</button>
+    </section>
+
+    <!-- Health Check -->
+    <section class="card" style="padding:24px; text-align:left;">
+      <h3 style="margin-top:0;">❤️ เช็กสถานะ AI (Ollama)</h3>
+      <p style="font-size:14px; color:#aaa;">ตรวจสอบว่าระบบ Ollama รันอยู่และโหลดโมเดลพร้อมใช้งานหรือไม่</p>
+      <button class="btn" style="width:100%; margin-top:16px; justify-content:center; background:#228b22;" onclick="checkHealth()">🩺 Check Health</button>
+    </section>
+
+    <!-- Reset DB -->
+    <section class="card" style="padding:24px; text-align:left; border:1px solid #8b0000;">
+      <h3 style="margin-top:0; color:#ff6b6b;">⚠️ ล้างฐานข้อมูล</h3>
+      <p style="font-size:14px; color:#aaa;">ลบและสร้างฐานข้อมูลใหม่ทั้งหมด (ข้อมูลราคาและ Alert เดิมจะหายไป)</p>
+      <button class="btn" style="width:100%; margin-top:16px; justify-content:center; background:#8b0000;" onclick="if(confirm('แน่ใจหรือไม่ว่าจะล้างฐานข้อมูลทั้งหมด?')) runCommand('reset-db')">🗑️ Reset Database</button>
+    </section>
+
+    <!-- Restart Server -->
+    <section class="card" style="padding:24px; text-align:left; border:1px solid #b8860b;">
+      <h3 style="margin-top:0; color:#ffd700;">🔄 รีสตาร์ทเซิร์ฟเวอร์</h3>
+      <p style="font-size:14px; color:#aaa;">ปิดแล้วเปิดโปรแกรมใหม่ทั้งตัว (Flask + Scheduler + Tray) — ใช้หลังแก้โค้ดหรือ .env เพื่อให้ค่าใหม่มีผล</p>
+      <button id="restart-btn" class="btn" style="width:100%; margin-top:16px; justify-content:center; background:#b8860b;" onclick="restartServer()">🔄 Restart Server</button>
+    </section>
+  </div>
+
+  <div style="margin-top: 32px;">
+    <h2>🖥️ System Logs (Real-time)</h2>
+    <pre id="log-viewer" style="background:#0d0d0d; color:#0f0; padding:16px; border-radius:8px; height:400px; overflow-y:auto; font-family:monospace; font-size:12px; white-space:pre-wrap; border:1px solid #333;">กำลังโหลด Logs...</pre>
+  </div>
+</div>
+
+<script>
+async function runCommand(cmd) {
+  try {
+    const res = await fetch(`/api/system/run/${cmd}`, { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      alert(`✅ สั่งงานสำเร็จ: ${data.message}`);
+    } else {
+      alert(`❌ เกิดข้อผิดพลาด: ${data.error}`);
+    }
+  } catch(e) {
+    alert("❌ ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
+  }
+}
+
+async function restartServer() {
+  if (!confirm('รีสตาร์ทเซิร์ฟเวอร์? (จะใช้เวลาประมาณ 5-10 วินาที)')) return;
+  const btn = document.getElementById('restart-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ กำลังรีสตาร์ท...';
+  try {
+    await fetch('/api/system/restart', { method: 'POST' });
+  } catch(e) {
+    // server อาจตายก่อนตอบกลับ — ไม่เป็นไร เดินหน้ารอต่อ
+  }
+  // รอให้ server เก่าตายก่อนค่อยเริ่ม poll (กัน poll เจอ server เก่าแล้ว reload เร็วไป)
+  await new Promise(r => setTimeout(r, 3000));
+  const start = Date.now();
+  const poll = setInterval(async () => {
+    try {
+      const r = await fetch('/api/summary', { cache: 'no-store' });
+      if (r.ok) {
+        clearInterval(poll);
+        btn.textContent = '✅ กลับมาแล้ว! กำลังโหลดหน้าใหม่...';
+        location.reload();
+      }
+    } catch(e) { /* ยังไม่ขึ้น รอต่อ */ }
+    if (Date.now() - start > 60000) {
+      clearInterval(poll);
+      btn.disabled = false;
+      btn.textContent = '🔄 Restart Server';
+      alert('❌ รอเกิน 1 นาทีแล้วเซิร์ฟเวอร์ยังไม่กลับมา — ลองเช็ค log หรือสตาร์ทเองจาก Terminal');
+    }
+  }, 1000);
+}
+
+async function checkHealth() {
+  try {
+    const res = await fetch('/api/system/health');
+    const data = await res.json();
+    if (data.ok) {
+      alert(`✅ AI ทำงานปกติ (Status: ${data.status})`);
+    } else {
+      alert(`❌ AI ไม่พร้อมทำงาน! (Status: ${data.status}) - กรุณาตรวจสอบ Ollama`);
+    }
+  } catch(e) {
+    alert("❌ ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
+  }
+}
+
+async function fetchLogs() {
+  try {
+    const res = await fetch('/api/system/logs');
+    const data = await res.json();
+    const viewer = document.getElementById('log-viewer');
+    
+    // ตรวจสอบว่าผู้ใช้อยู่ที่บรรทัดล่างสุดหรือไม่ เพื่อให้เลื่อนลงอัตโนมัติ
+    const isScrolledToBottom = viewer.scrollHeight - viewer.clientHeight <= viewer.scrollTop + 20;
+    
+    viewer.textContent = data.logs || "ยังไม่มีข้อมูล";
+    
+    if (isScrolledToBottom) {
+      viewer.scrollTop = viewer.scrollHeight;
+    }
+  } catch (e) {
+    console.error("Failed to fetch logs");
+  }
+}
+
+// อัปเดต Logs ทุกๆ 2 วินาที
+setInterval(fetchLogs, 2000);
+fetchLogs();
+</script>
+{% endblock %}

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}ประเมินราคาจากรูป · PC Price Tracker{% endblock %}
+{% block content %}
+<h1>📷 ประเมินราคาจากรูป</h1>
+<p class="muted">วางรูปสกรีนช็อตโพสต์ขายคอม (Ctrl+V) หรือเลือกไฟล์ —
+ระบบจะแยกรายการชิ้นส่วนด้วย AI แล้วเทียบช่วงราคาจากโพสต์ขายจริงที่เก็บไว้ในระบบ</p>
+
+<div class="card est-drop" id="drop" tabindex="0">
+  <input type="file" id="file" accept="image/png,image/jpeg,image/webp" hidden>
+  <div id="drop-hint">
+    <p><strong>Ctrl+V วางรูปที่นี่</strong> หรือ <a href="#" id="pick">เลือกไฟล์</a></p>
+    <p class="muted">PNG / JPEG / WebP ไม่เกิน 10MB</p>
+  </div>
+  <img id="preview" alt="" hidden>
+</div>
+
+<div class="est-actions">
+  <button id="go" disabled>ประเมินราคา</button>
+  <span id="status" class="muted"></span>
+</div>
+
+<section id="result" hidden>
+  <div class="cards" id="total-cards"></div>
+  <table class="catalog">
+    <thead>
+      <tr>
+        <th>ชิ้นส่วน</th><th>หมวด</th>
+        <th class="r">min</th><th class="r">median</th><th class="r">max</th>
+        <th class="r">ตัวอย่าง</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <p class="muted" id="coverage"></p>
+</section>
+
+<style>
+  .est-drop { margin: 1rem 0; padding: 1.5rem; text-align: center; cursor: pointer;
+              border: 2px dashed rgba(128,128,128,.45); }
+  .est-drop:focus, .est-drop.over { border-color: #6c8cff; }
+  .est-drop img { max-width: 100%; max-height: 420px; border-radius: 6px; }
+  .est-actions { display: flex; align-items: center; gap: .8rem; margin-bottom: 1.2rem; }
+  .est-nodata { opacity: .55; }
+  #status.busy::after { content: "…"; animation: estdots 1.2s steps(4) infinite; }
+  @keyframes estdots { 0% { content: ""; } 50% { content: ".."; } 100% { content: "..."; } }
+</style>
+
+<script>
+  const drop = document.getElementById('drop');
+  const fileInput = document.getElementById('file');
+  const preview = document.getElementById('preview');
+  const go = document.getElementById('go');
+  const statusEl = document.getElementById('status');
+  let imageBlob = null;
+
+  function setImage(blob) {
+    if (!blob || !blob.type.startsWith('image/')) return;
+    imageBlob = blob;
+    preview.src = URL.createObjectURL(blob);
+    preview.hidden = false;
+    document.getElementById('drop-hint').hidden = true;
+    go.disabled = false;
+    document.getElementById('result').hidden = true;
+  }
+
+  document.getElementById('pick').addEventListener('click', e => { e.preventDefault(); fileInput.click(); });
+  drop.addEventListener('click', () => { if (!imageBlob) fileInput.click(); });
+  fileInput.addEventListener('change', () => setImage(fileInput.files[0]));
+  document.addEventListener('paste', e => {
+    const item = [...e.clipboardData.items].find(i => i.type.startsWith('image/'));
+    if (item) setImage(item.getAsFile());
+  });
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('over');
+    setImage(e.dataTransfer.files[0]);
+  });
+
+  const baht = n => n == null ? '-' : Math.round(n).toLocaleString('th-TH');
+
+  go.addEventListener('click', async () => {
+    if (!imageBlob) return;
+    go.disabled = true;
+    statusEl.textContent = 'กำลังอ่านรูปด้วย AI (ราว 1-2 นาที ถ้าเพิ่งสลับโมเดลจะช้าหน่อย)';
+    statusEl.classList.add('busy');
+    try {
+      const form = new FormData();
+      form.append('image', imageBlob, 'post.png');
+      const r = await fetch('/api/estimate', { method: 'POST', body: form });
+      const data = await r.json();
+      if (!data.ok) throw new Error(data.error || 'ประเมินไม่สำเร็จ');
+      render(data);
+    } catch (err) {
+      statusEl.textContent = '❌ ' + err.message;
+    } finally {
+      statusEl.classList.remove('busy');
+      go.disabled = false;
+      if (!statusEl.textContent.startsWith('❌')) statusEl.textContent = '';
+    }
+  });
+
+  function render(data) {
+    const rows = document.getElementById('rows');
+    rows.innerHTML = '';
+    for (const it of data.items) {
+      const tr = document.createElement('tr');
+      const rng = it.range;
+      if (!rng) tr.className = 'est-nodata';
+      const tags = [it.capacity, it.speed].filter(v => v && v !== 'ไม่ระบุ')
+        .map(v => `<span class="tag cap">${v}</span>`).join(' ');
+      tr.innerHTML = `
+        <td>${it.item_name} ${tags}
+            ${rng && !rng.capacity_matched && it.capacity !== 'ไม่ระบุ'
+              ? '<span class="tag">เทียบทั้งรุ่น</span>' : ''}</td>
+        <td>${it.category}</td>
+        <td class="r">${rng ? baht(rng.min) : '-'}</td>
+        <td class="r">${rng ? baht(rng.median) : 'ไม่มีข้อมูล'}</td>
+        <td class="r">${rng ? baht(rng.max) : '-'}</td>
+        <td class="r">${rng ? rng.count : 0}</td>`;
+      rows.appendChild(tr);
+    }
+
+    const cards = document.getElementById('total-cards');
+    cards.innerHTML = data.total ? `
+      <div class="card"><h3>ราคารวม (median)</h3><p>฿${baht(data.total.median)}</p></div>
+      <div class="card"><h3>ช่วงต่ำสุด</h3><p>฿${baht(data.total.min)}</p></div>
+      <div class="card"><h3>ช่วงสูงสุด</h3><p>฿${baht(data.total.max)}</p></div>`
+      : '<div class="card"><h3>ราคารวม</h3><p>ไม่มีข้อมูลพอประเมิน</p></div>';
+
+    document.getElementById('coverage').textContent =
+      `ราคารวมคิดจาก ${data.covered}/${data.total_items} ชิ้นที่มีข้อมูลในระบบ ` +
+      `(จากโพสต์ขายจริงใน price_history ไม่ใช่ราคาที่ AI เดา) · โมเดล: ${data.model}`;
+    document.getElementById('result').hidden = false;
+  }
+</script>
+{% endblock %}

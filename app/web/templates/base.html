@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}PC Price Tracker{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('main.dashboard') }}">🖥️ PC Price Tracker</a>
+    <nav>
+      <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('main.catalog') }}">Catalog</a>
+      <a href="{{ url_for('main.estimate') }}">📷 ประเมินจากรูป</a>
+      <a href="{{ url_for('main.alerts') }}">Alerts</a>
+      <a href="{{ url_for('main.system') }}">⚙️ ตั้งค่าระบบ</a>
+    </nav>
+    <div class="actions">
+      <button onclick="scrapeNow('groups')">Scrape Groups</button>
+      <button onclick="scrapeNow('marketplace')">Scrape Market</button>
+    </div>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>ข้อมูล local 100% · ไม่เก็บข้อมูลส่วนบุคคลของผู้ขาย (PDPA)</footer>
+
+  <script>
+    async function scrapeNow(source) {
+      const r = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({source})
+      });
+      const data = await r.json();
+      alert(data.message || data.error || 'ส่งคำสั่งแล้ว');
+    }
+    async function markRead(id, el) {
+      await fetch(`/api/alerts/${id}/read`, {method: 'POST'});
+      el.closest('.alert-row')?.classList.add('read');
+      el.remove();
+    }
+  </script>
+</body>
+</html>

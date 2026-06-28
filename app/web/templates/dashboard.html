@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · PC Price Tracker{% endblock %}
+{% block content %}
+<section class="cards">
+  <div class="card"><div class="num">{{ summary['items'] }}</div><div class="lbl">price-line ใน catalog</div></div>
+  <div class="card"><div class="num">{{ summary.price_history }}</div><div class="lbl">โพสที่เก็บ</div></div>
+  <div class="card"><div class="num">{{ summary.alerts }}</div><div class="lbl">alert ทั้งหมด</div></div>
+  <div class="card alert"><div class="num">{{ summary.unread }}</div><div class="lbl">ยังไม่อ่าน</div></div>
+</section>
+
+{% if category_counts %}
+<section class="catcounts">
+  {% for cat, n in category_counts %}
+    <a class="catchip" href="{{ url_for('main.catalog') }}#cat-{{ cat }}">{{ cat }} <b>{{ n }}</b></a>
+  {% endfor %}
+</section>
+{% endif %}
+
+<div class="grid2">
+  <section>
+    <h2>สินค้าเด่น (sample เยอะสุด)</h2>
+    {% if top_items %}
+    <table>
+      <thead><tr><th>สินค้า</th><th>หมวด</th><th class="r">avg</th><th class="r">min</th><th class="r">n</th></tr></thead>
+      <tbody>
+      {% for it in top_items %}
+        <tr>
+          <td>
+            <a href="{{ url_for('main.item', item_name=it.item_name) }}">{{ it.item_name }}</a>
+            {% if it.form_factor != 'ไม่ระบุ' %}<span class="tag ff">{{ it.form_factor }}</span>{% endif %}
+            {% if it.capacity != 'ไม่ระบุ' %}<span class="tag cap">{{ it.capacity }}</span>{% endif %}
+            {% if it.speed != 'ไม่ระบุ' %}<span class="tag spd">{{ it.speed }}</span>{% endif %}
+          </td>
+          <td><span class="tag">{{ it.category }}</span></td>
+          <td class="r">{{ it.avg_price|baht }}</td>
+          <td class="r">{{ it.min_price|baht }}</td>
+          <td class="r">{{ it.sample_count }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p class="empty">ยังไม่มีข้อมูล — กด "Scrape" ด้านบน หรือรอ scheduler ทำงาน</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Alert ล่าสุด</h2>
+    {% if recent_alerts %}
+    <ul class="alert-list">
+      {% for a in recent_alerts %}
+        <li class="{{ 'read' if a.is_read else '' }}">
+          <strong><a href="{{ url_for('main.item', item_name=a.item_name) }}">{{ a.item_name }}</a></strong>
+          {% if a.capacity and a.capacity != 'ไม่ระบุ' %}<span class="tag cap">{{ a.capacity }}</span>{% endif %}
+          {% if a.speed and a.speed != 'ไม่ระบุ' %}<span class="tag spd">{{ a.speed }}</span>{% endif %}
+          <span class="discount">-{{ a.discount_pct }}%</span>
+          <span class="price">{{ a.price|baht }} ฿</span>
+          {% if a.local_pickup %}<span class="tag local">🏠 รับมือได้</span>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="empty">ยังไม่มี alert</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

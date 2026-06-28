@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": ".venv\\Scripts\\python.exe",
+      "runtimeArgs": [
+        "-c",
+        "from app.web import create_app; create_app().run(host='127.0.0.1', port=5001, threaded=True)"
+      ],
+      "port": 5001
+    }
+  ]
+}

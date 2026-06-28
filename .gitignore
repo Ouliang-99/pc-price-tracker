@@ -1,0 +1,21 @@
+# env / secrets
+.env
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# data / logs (local only)
+data/*.db
+data/*.db-*
+data/raw/
+logs/*.log
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

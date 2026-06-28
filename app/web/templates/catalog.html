@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Catalog · PC Price Tracker{% endblock %}
+{% macro tags(row) %}
+  {% if row.form_factor and row.form_factor != 'ไม่ระบุ' %}<span class="tag ff">{{ row.form_factor }}</span>{% endif %}
+  {% if row.capacity and row.capacity != 'ไม่ระบุ' %}<span class="tag cap">{{ row.capacity }}</span>{% endif %}
+  {% if row.speed and row.speed != 'ไม่ระบุ' %}<span class="tag spd">{{ row.speed }}</span>{% endif %}
+{% endmacro %}
+{% block content %}
+<h1>Catalog</h1>
+<input id="filter" class="filter" placeholder="กรองชื่อรุ่น / variant..." onkeyup="filterRows()">
+
+{% if groups %}
+  <nav class="cat-nav">
+    {% for cat, rows in groups %}<a href="#cat-{{ cat }}">{{ cat }} <span class="muted">({{ rows|length }})</span></a>{% endfor %}
+  </nav>
+  {% for cat, rows in groups %}
+  <section class="cat-block" id="cat-{{ cat }}">
+    <h2>{{ cat }} <span class="muted">· {{ rows|length }} รุ่น</span></h2>
+    <table class="catalog">
+      <thead>
+        <tr>
+          <th>รุ่น</th><th>แยกย่อย</th>
+          <th class="r">avg</th><th class="r">median</th>
+          <th class="r">min</th><th class="r">max</th><th class="r">n</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for it in rows %}
+        <tr>
+          <td><a href="{{ url_for('main.item', item_name=it.item_name) }}">{{ it.item_name }}</a></td>
+          <td>{{ tags(it) }}</td>
+          <td class="r">{{ it.avg_price|baht }}</td>
+          <td class="r">{{ it.median_price|baht }}</td>
+          <td class="r">{{ it.min_price|baht }}</td>
+          <td class="r">{{ it.max_price|baht }}</td>
+          <td class="r">{{ it.sample_count }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endfor %}
+{% else %}
+  <p class="empty">ยังไม่มีข้อมูล — กด "Scrape" ด้านบน หรือรอ scheduler</p>
+{% endif %}
+
+<script>
+function filterRows() {
+  const q = document.getElementById('filter').value.toLowerCase();
+  document.querySelectorAll('.cat-block').forEach(block => {
+    let any = false;
+    block.querySelectorAll('tbody tr').forEach(tr => {
+      const show = tr.textContent.toLowerCase().includes(q);
+      tr.style.display = show ? '' : 'none';
+      if (show) any = true;
+    });
+    block.style.display = any ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

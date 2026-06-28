@@ -1,0 +1,13 @@
+# PC Price Tracker — dependencies
+# Python 3.11+
+
+flask>=3.0
+apify-client>=1.7
+APScheduler>=3.10
+pystray>=0.19
+plyer>=2.1
+python-dotenv>=1.0
+requests>=2.31
+Pillow>=10.0          # pystray ใช้สร้าง tray icon image
+pywebview>=4.4.1
+playwright>=1.40.0
